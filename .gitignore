@@ -1,0 +1,52 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Dependencies (uncomment if you want to include Cargo.lock)
+# Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup and temporary files
+*.bak
+*.tmp
+*.temp
+*~
+
+# Log files
+*.log
+
+# Test coverage
+tarpaulin-report.html
+cobertura.xml
+
+# Benchmark results
+criterion/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Sample/test data files (uncomment as needed)
+# *.cf32
+# *.iq
+# samples/
