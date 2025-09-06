@@ -2,6 +2,12 @@
 name = "adsb_demod"
 version = "0.1.0"
 edition = "2024"
+license = "Apache-2.0"
+description = "High-performance ADS-B decoder in Rust using FutureSDR framework with real-time web interface"
+repository = "https://github.com/ccustine/aviaware"
+keywords = ["adsb", "sdr", "aviation", "futuresdr", "decoder"]
+categories = ["command-line-utilities", "science", "web-programming"]
+authors = ["ccustine"]
 
 [workspace]
 
