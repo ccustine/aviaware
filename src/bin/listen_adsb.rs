@@ -1,4 +1,5 @@
 use adsb_demod::DEMOD_SAMPLE_RATE;
+use adsb_demod::{AvrBroadcaster, AvrServer, BeastBroadcaster, BeastServer, RawBroadcaster, RawServer};
 use adsb_demod::Decoder;
 use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
@@ -42,6 +43,15 @@ struct Args {
     /// Remove aircrafts when no packets have been received for the specified number of seconds
     #[arg(short, long)]
     lifetime: Option<u64>,
+    /// Enable BEAST mode output on port 30005 (dump1090 compatible)
+    #[arg(long)]
+    beast: bool,
+    /// Enable AVR format output on port 30003 (dump1090 compatible with timestamps)
+    #[arg(long)]
+    avr: bool,
+    /// Enable raw format output on port 30002 (dump1090 port 30002 compatible)
+    #[arg(long)]
+    raw: bool,
 }
 
 fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
@@ -56,7 +66,8 @@ fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
     let mut fg = Flowgraph::new();
     futuresdr::runtime::init();
@@ -126,10 +137,73 @@ fn main() -> Result<()> {
     let adsb_decoder = fg.add_block(Decoder::new(false))?;
     fg.connect_message(adsb_demod, "out", adsb_decoder, "in")?;
 
-    let tracker = match args.lifetime {
-        Some(s) => Tracker::with_pruning(Duration::from_secs(s)),
-        None => Tracker::new(),
-    };
+    // Set up output servers and tracker based on enabled modes
+    let mut beast_broadcaster = None;
+    let mut avr_broadcaster = None;
+    let mut raw_broadcaster = None;
+
+    // Start BEAST server if enabled
+    if args.beast {
+        let (broadcaster, receiver) = BeastBroadcaster::new(1024);
+        match BeastServer::new(30005, receiver).await {
+            Ok(server) => {
+                println!("BEAST mode server started on port 30005");
+                tokio::spawn(async move {
+                    if let Err(e) = server.run().await {
+                        eprintln!("BEAST server error: {}", e);
+                    }
+                });
+                beast_broadcaster = Some(broadcaster);
+            }
+            Err(e) => {
+                eprintln!("Failed to start BEAST server: {}", e);
+            }
+        }
+    }
+
+    // Start AVR server if enabled
+    if args.avr {
+        let (broadcaster, receiver) = AvrBroadcaster::new(1024);
+        match AvrServer::new(30003, receiver).await {
+            Ok(server) => {
+                println!("AVR format server started on port 30003");
+                tokio::spawn(async move {
+                    if let Err(e) = server.run().await {
+                        eprintln!("AVR server error: {}", e);
+                    }
+                });
+                avr_broadcaster = Some(broadcaster);
+            }
+            Err(e) => {
+                eprintln!("Failed to start AVR server: {}", e);
+            }
+        }
+    }
+
+    // Start raw server if enabled
+    if args.raw {
+        let (broadcaster, receiver) = RawBroadcaster::new(1024);
+        match RawServer::new(30002, receiver).await {
+            Ok(server) => {
+                println!("Raw format server started on port 30002");
+                tokio::spawn(async move {
+                    if let Err(e) = server.run().await {
+                        eprintln!("Raw server error: {}", e);
+                    }
+                });
+                raw_broadcaster = Some(broadcaster);
+            }
+            Err(e) => {
+                eprintln!("Failed to start raw server: {}", e);
+            }
+        }
+    }
+
+    // Create tracker with appropriate broadcasters
+    // Using the internal method to handle all 3 output formats
+    let prune_after = args.lifetime.map(Duration::from_secs);
+    let tracker = Tracker::new_with_optional_args(prune_after, beast_broadcaster, avr_broadcaster, raw_broadcaster);
+    
     let adsb_tracker = fg.add_block(tracker)?;
     fg.connect_message(adsb_decoder, "out", adsb_tracker, "in")?;
 

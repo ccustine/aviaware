@@ -18,6 +18,9 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 use crate::decoder::DecoderMetaData;
+use crate::beast_output::BeastBroadcaster;
+use crate::avr_output::AvrBroadcaster;
+use crate::raw_output::RawBroadcaster;
 use crate::*;
 
 /// The duration considered to be recent when decoding CPR frames
@@ -28,20 +31,50 @@ pub struct Tracker {
     prune_after: Option<Duration>,
     /// A register of the received aircrafts.
     aircraft_register: AircraftRegister,
+    /// Optional BEAST mode broadcaster for dump1090 compatibility
+    beast_broadcaster: Option<BeastBroadcaster>,
+    /// Optional AVR format broadcaster for dump1090 compatibility
+    avr_broadcaster: Option<AvrBroadcaster>,
+    /// Optional raw format broadcaster for dump1090 compatibility
+    raw_broadcaster: Option<RawBroadcaster>,
 }
 
 impl Tracker {
     /// Creates a new tracker without pruning.
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TypedBlock<Self> {
-        Tracker::new_with_optional_args(None)
+        Tracker::new_with_optional_args(None, None, None, None)
     }
 
     pub fn with_pruning(after: Duration) -> TypedBlock<Self> {
-        Tracker::new_with_optional_args(Some(after))
+        Tracker::new_with_optional_args(Some(after), None, None, None)
     }
 
-    fn new_with_optional_args(prune_after: Option<Duration>) -> TypedBlock<Self> {
+    pub fn with_beast(beast_broadcaster: BeastBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(None, Some(beast_broadcaster), None, None)
+    }
+
+    pub fn with_avr(avr_broadcaster: AvrBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(None, None, Some(avr_broadcaster), None)
+    }
+
+    pub fn with_pruning_and_beast(after: Duration, beast_broadcaster: BeastBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(Some(after), Some(beast_broadcaster), None, None)
+    }
+
+    pub fn with_pruning_and_avr(after: Duration, avr_broadcaster: AvrBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(Some(after), None, Some(avr_broadcaster), None)
+    }
+
+    pub fn with_beast_and_avr(beast_broadcaster: BeastBroadcaster, avr_broadcaster: AvrBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(None, Some(beast_broadcaster), Some(avr_broadcaster), None)
+    }
+
+    pub fn with_all(after: Duration, beast_broadcaster: BeastBroadcaster, avr_broadcaster: AvrBroadcaster) -> TypedBlock<Self> {
+        Tracker::new_with_optional_args(Some(after), Some(beast_broadcaster), Some(avr_broadcaster), None)
+    }
+
+    pub fn new_with_optional_args(prune_after: Option<Duration>, beast_broadcaster: Option<BeastBroadcaster>, avr_broadcaster: Option<AvrBroadcaster>, raw_broadcaster: Option<RawBroadcaster>) -> TypedBlock<Self> {
         let aircraft_register = AircraftRegister {
             register: HashMap::new(),
         };
@@ -55,6 +88,9 @@ impl Tracker {
             Self {
                 prune_after,
                 aircraft_register,
+                beast_broadcaster,
+                avr_broadcaster,
+                raw_broadcaster,
             },
         )
     }
@@ -101,6 +137,10 @@ impl Tracker {
                     info!("Received {:?}", adsb_packet);
                     if let adsb_deku::DF::ADSB(adsb) = &adsb_packet.message.df {
                         let metadata = &adsb_packet.decoder_metadata;
+                        
+                        // Broadcast messages if enabled
+                        self.broadcast_output_messages(adsb_packet);
+                        
                         match &adsb.me {
                             adsb_deku::adsb::ME::AircraftIdentification(identification) => self
                                 .aircraft_identification_received(
@@ -274,6 +314,30 @@ impl Tracker {
             rec.velocities.push(new_record);
         }
         self.update_last_seen(icao);
+    }
+
+    /// Broadcast an ADS-B packet via enabled output formats
+    fn broadcast_output_messages(&self, adsb_packet: &AdsbPacket) {
+        // Broadcast BEAST message if enabled
+        if let Some(ref broadcaster) = self.beast_broadcaster {
+            if let Err(e) = broadcaster.broadcast_packet(&adsb_packet.raw_bytes, &adsb_packet.decoder_metadata) {
+                warn!("Failed to broadcast BEAST message: {}", e);
+            }
+        }
+
+        // Broadcast AVR message if enabled
+        if let Some(ref broadcaster) = self.avr_broadcaster {
+            if let Err(e) = broadcaster.broadcast_packet(&adsb_packet.raw_bytes, &adsb_packet.decoder_metadata) {
+                warn!("Failed to broadcast AVR message: {}", e);
+            }
+        }
+
+        // Broadcast raw message if enabled
+        if let Some(ref broadcaster) = self.raw_broadcaster {
+            if let Err(e) = broadcaster.broadcast_packet(&adsb_packet.raw_bytes, &adsb_packet.decoder_metadata) {
+                warn!("Failed to broadcast raw message: {}", e);
+            }
+        }
     }
 }
 
