@@ -9,17 +9,17 @@ AviAware is an ADS-B (Automatic Dependent Surveillance–Broadcast) decoder writ
 ## Build and Run Commands
 
 ```bash
-# Build and run in release mode (recommended for actual use)
-cargo run --release
-
-# Build only
-cargo build --release
-
-# Development build and run
+# Development build and run (recommended for actual use)
 cargo run
 
+# Build only
+cargo build
+
+# Build and run in release mode
+cargo run --release
+
 # Run with custom parameters (see listen-adsb binary for all options)
-cargo run --release -- --gain 40.0 --preamble-threshold 12.0
+cargo run -- --gain 40.0 --preamble-threshold 12.0
 ```
 
 ## Architecture
@@ -77,3 +77,54 @@ cargo run --release -- --file samples.cf32
 ```
 
 Input files should be Complex32 format at any sample rate ≥ 2 MHz.
+
+## Output Formats
+
+AviAware supports multiple output formats for compatibility with various ADS-B tools and applications:
+
+### BEAST Format (Port 30005)
+- **Default**: Enabled by default
+- **Description**: Binary format compatible with dump1090's BEAST mode
+- **Usage**: `--beast` / `--no-beast`, `--beast-port <PORT>`
+- **Protocol**: Binary messages with timestamps and signal levels
+- **Compatibility**: dump1090, tar1090, FlightRadar24 feeders
+
+### Raw Format (Port 30002)
+- **Default**: Enabled by default
+- **Description**: Simple hex format compatible with dump1090's raw output
+- **Usage**: `--raw` / `--no-raw`, `--raw-port <PORT>`
+- **Protocol**: `*{hexdata};\n` format
+- **Compatibility**: dump1090 port 30002, simple monitoring tools
+
+### AVR Format (Port 30003)
+- **Default**: Disabled by default
+- **Description**: Text format with timestamps and signal levels
+- **Usage**: `--avr`, `--avr-port <PORT>`
+- **Protocol**: `@{timestamp}\n*{hexdata};\n` format
+- **Compatibility**: dump1090 AVR format, debugging tools
+
+### SBS-1/BaseStation Format (Port 30004)
+- **Default**: Disabled by default
+- **Description**: CSV format compatible with BaseStation and SBS-1 receivers
+- **Usage**: `--sbs1`, `--sbs1-port <PORT>`
+- **Protocol**: Comma-separated values with aircraft data
+- **Compatibility**: BaseStation, Virtual Radar Server, PlanePlotter
+- **References**: 
+  - [BaseStation Protocol](http://woodair.net/sbs/article/barebones42_socket_data.htm)
+  - [SBS-1 Data Format](http://www.homepages.mcb.net/bones/SBS/Article/Barebones42_Socket_Data.htm)
+
+## Example Usage
+
+```bash
+# Run with defaults (BEAST + Raw)
+cargo run
+
+# Enable all output formats
+cargo run -- --avr --sbs1
+
+# Custom ports to avoid conflicts
+cargo run -- --beast-port 40005 --raw-port 40002 --sbs1-port 40004
+
+# Enable only SBS-1 output
+cargo run -- --no-beast --no-raw --sbs1
+```

@@ -1,6 +1,6 @@
 use adsb_demod::DEMOD_SAMPLE_RATE;
 use adsb_demod::{OutputModuleConfig, OutputModuleManager};
-use adsb_demod::{BeastOutput, AvrOutput, RawOutput};
+use adsb_demod::{BeastOutput, AvrOutput, RawOutput, Sbs1Output};
 use adsb_demod::Decoder;
 use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
@@ -68,6 +68,12 @@ struct Args {
     /// Port for raw format output
     #[arg(long, default_value_t = 30002)]
     raw_port: u16,
+    /// Enable SBS-1/BaseStation format output (port 30004 compatible)
+    #[arg(long)]
+    sbs1: bool,
+    /// Port for SBS-1/BaseStation format output
+    #[arg(long, default_value_t = 30004)]
+    sbs1_port: u16,
 }
 
 fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
@@ -192,6 +198,19 @@ async fn main() -> Result<()> {
             }
             Err(e) => {
                 eprintln!("Failed to start raw server: {}", e);
+            }
+        }
+    }
+
+    if args.sbs1 {
+        let config = OutputModuleConfig::new("sbs1", args.sbs1_port).with_buffer_capacity(1024);
+        match Sbs1Output::new(config).await {
+            Ok(module) => {
+                println!("SBS-1/BaseStation format server started on port {}", args.sbs1_port);
+                output_manager.add_module(Box::new(module));
+            }
+            Err(e) => {
+                eprintln!("Failed to start SBS-1 server: {}", e);
             }
         }
     }

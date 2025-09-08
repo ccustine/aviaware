@@ -25,6 +25,7 @@ soapy = ["futuresdr/soapy"]
 adsb_deku = "0.7"
 anyhow = "1.0"
 async-trait = "0.1"
+chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 futuresdr = { version = "0.0.38", features = ["seify"] }
 serde = { version = "1", features = ["derive"] }
