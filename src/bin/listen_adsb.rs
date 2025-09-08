@@ -44,15 +44,30 @@ struct Args {
     /// Remove aircrafts when no packets have been received for the specified number of seconds
     #[arg(short, long)]
     lifetime: Option<u64>,
-    /// Enable BEAST mode output on port 30005 (dump1090 compatible)
-    #[arg(long)]
+    /// Enable BEAST mode output (dump1090 compatible)
+    #[arg(long, default_value_t = true)]
     beast: bool,
-    /// Enable AVR format output on port 30003 (dump1090 compatible with timestamps)
+    /// Disable BEAST mode output
+    #[arg(long, conflicts_with = "beast")]
+    no_beast: bool,
+    /// Port for BEAST mode output
+    #[arg(long, default_value_t = 30005)]
+    beast_port: u16,
+    /// Enable AVR format output (dump1090 compatible with timestamps)
     #[arg(long)]
     avr: bool,
-    /// Enable raw format output on port 30002 (dump1090 port 30002 compatible)
-    #[arg(long)]
+    /// Port for AVR format output
+    #[arg(long, default_value_t = 30003)]
+    avr_port: u16,
+    /// Enable raw format output (dump1090 port 30002 compatible)
+    #[arg(long, default_value_t = true)]
     raw: bool,
+    /// Disable raw format output
+    #[arg(long, conflicts_with = "raw")]
+    no_raw: bool,
+    /// Port for raw format output
+    #[arg(long, default_value_t = 30002)]
+    raw_port: u16,
 }
 
 fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
@@ -142,11 +157,11 @@ async fn main() -> Result<()> {
     let mut output_manager = OutputModuleManager::new();
 
     // Start enabled output modules
-    if args.beast {
-        let config = OutputModuleConfig::new("beast", 30005).with_buffer_capacity(1024);
+    if args.beast && !args.no_beast {
+        let config = OutputModuleConfig::new("beast", args.beast_port).with_buffer_capacity(1024);
         match BeastOutput::new(config).await {
             Ok(module) => {
-                println!("BEAST mode server started on port 30005");
+                println!("BEAST mode server started on port {}", args.beast_port);
                 output_manager.add_module(Box::new(module));
             }
             Err(e) => {
@@ -156,10 +171,10 @@ async fn main() -> Result<()> {
     }
 
     if args.avr {
-        let config = OutputModuleConfig::new("avr", 30003).with_buffer_capacity(1024);
+        let config = OutputModuleConfig::new("avr", args.avr_port).with_buffer_capacity(1024);
         match AvrOutput::new(config).await {
             Ok(module) => {
-                println!("AVR format server started on port 30003");
+                println!("AVR format server started on port {}", args.avr_port);
                 output_manager.add_module(Box::new(module));
             }
             Err(e) => {
@@ -168,11 +183,11 @@ async fn main() -> Result<()> {
         }
     }
 
-    if args.raw {
-        let config = OutputModuleConfig::new("raw", 30002).with_buffer_capacity(1024);
+    if args.raw && !args.no_raw {
+        let config = OutputModuleConfig::new("raw", args.raw_port).with_buffer_capacity(1024);
         match RawOutput::new(config).await {
             Ok(module) => {
-                println!("Raw format server started on port 30002");
+                println!("Raw format server started on port {}", args.raw_port);
                 output_manager.add_module(Box::new(module));
             }
             Err(e) => {

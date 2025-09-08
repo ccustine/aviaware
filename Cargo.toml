@@ -12,7 +12,7 @@ authors = ["ccustine"]
 [workspace]
 
 [[bin]]
-name = "listen-adsb"
+name = "aviaware"
 path = "src/bin/listen_adsb.rs"
 
 [features]
