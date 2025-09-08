@@ -1,5 +1,6 @@
 use adsb_demod::DEMOD_SAMPLE_RATE;
-use adsb_demod::{AvrBroadcaster, AvrServer, BeastBroadcaster, BeastServer, RawBroadcaster, RawServer};
+use adsb_demod::{OutputModuleConfig, OutputModuleManager};
+use adsb_demod::{BeastOutput, AvrOutput, RawOutput};
 use adsb_demod::Decoder;
 use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
@@ -137,23 +138,16 @@ async fn main() -> Result<()> {
     let adsb_decoder = fg.add_block(Decoder::new(false))?;
     fg.connect_message(adsb_demod, "out", adsb_decoder, "in")?;
 
-    // Set up output servers and tracker based on enabled modes
-    let mut beast_broadcaster = None;
-    let mut avr_broadcaster = None;
-    let mut raw_broadcaster = None;
+    // Set up dynamic output module system
+    let mut output_manager = OutputModuleManager::new();
 
-    // Start BEAST server if enabled
+    // Start enabled output modules
     if args.beast {
-        let (broadcaster, receiver) = BeastBroadcaster::new(1024);
-        match BeastServer::new(30005, receiver).await {
-            Ok(server) => {
+        let config = OutputModuleConfig::new("beast", 30005).with_buffer_capacity(1024);
+        match BeastOutput::new(config).await {
+            Ok(module) => {
                 println!("BEAST mode server started on port 30005");
-                tokio::spawn(async move {
-                    if let Err(e) = server.run().await {
-                        eprintln!("BEAST server error: {}", e);
-                    }
-                });
-                beast_broadcaster = Some(broadcaster);
+                output_manager.add_module(Box::new(module));
             }
             Err(e) => {
                 eprintln!("Failed to start BEAST server: {}", e);
@@ -161,18 +155,12 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Start AVR server if enabled
     if args.avr {
-        let (broadcaster, receiver) = AvrBroadcaster::new(1024);
-        match AvrServer::new(30003, receiver).await {
-            Ok(server) => {
+        let config = OutputModuleConfig::new("avr", 30003).with_buffer_capacity(1024);
+        match AvrOutput::new(config).await {
+            Ok(module) => {
                 println!("AVR format server started on port 30003");
-                tokio::spawn(async move {
-                    if let Err(e) = server.run().await {
-                        eprintln!("AVR server error: {}", e);
-                    }
-                });
-                avr_broadcaster = Some(broadcaster);
+                output_manager.add_module(Box::new(module));
             }
             Err(e) => {
                 eprintln!("Failed to start AVR server: {}", e);
@@ -180,18 +168,12 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Start raw server if enabled
     if args.raw {
-        let (broadcaster, receiver) = RawBroadcaster::new(1024);
-        match RawServer::new(30002, receiver).await {
-            Ok(server) => {
+        let config = OutputModuleConfig::new("raw", 30002).with_buffer_capacity(1024);
+        match RawOutput::new(config).await {
+            Ok(module) => {
                 println!("Raw format server started on port 30002");
-                tokio::spawn(async move {
-                    if let Err(e) = server.run().await {
-                        eprintln!("Raw server error: {}", e);
-                    }
-                });
-                raw_broadcaster = Some(broadcaster);
+                output_manager.add_module(Box::new(module));
             }
             Err(e) => {
                 eprintln!("Failed to start raw server: {}", e);
@@ -199,10 +181,9 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Create tracker with appropriate broadcasters
-    // Using the internal method to handle all 3 output formats
+    // Create tracker with dynamic output module system
     let prune_after = args.lifetime.map(Duration::from_secs);
-    let tracker = Tracker::new_with_optional_args(prune_after, beast_broadcaster, avr_broadcaster, raw_broadcaster);
+    let tracker = Tracker::new_with_modules(prune_after, output_manager);
     
     let adsb_tracker = fg.add_block(tracker)?;
     fg.connect_message(adsb_decoder, "out", adsb_tracker, "in")?;

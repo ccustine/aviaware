@@ -161,6 +161,97 @@ impl AvrBroadcaster {
     }
 }
 
+/// AVR output module implementing the OutputModule trait
+pub struct AvrOutput {
+    name: String,
+    port: u16,
+    broadcaster: AvrBroadcaster,
+    is_running: bool,
+}
+
+impl AvrOutput {
+    /// Create a new AVR output module
+    pub async fn new(config: crate::output_module::OutputModuleConfig) -> Result<Self> {
+        let (broadcaster, receiver) = AvrBroadcaster::new(config.buffer_capacity);
+        
+        // Start the server
+        let server = AvrServer::new(config.port, receiver).await?;
+        tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                error!("AVR server error: {}", e);
+            }
+        });
+
+        Ok(Self {
+            name: config.name,
+            port: config.port,
+            broadcaster,
+            is_running: true,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModule for AvrOutput {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        "AVR text format with timestamps for dump1090 compatibility (port 30003)"
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    fn broadcast_packet(&self, data: &[u8], metadata: &DecoderMetaData) -> Result<()> {
+        self.broadcaster.broadcast_packet(data, metadata)
+    }
+
+    fn client_count(&self) -> usize {
+        self.broadcaster.client_count()
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    fn stop(&mut self) -> Result<()> {
+        self.is_running = false;
+        Ok(())
+    }
+}
+
+/// Builder for AVR output modules
+pub struct AvrOutputBuilder;
+
+impl AvrOutputBuilder {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModuleBuilder for AvrOutputBuilder {
+    fn module_type(&self) -> &str {
+        "avr"
+    }
+
+    fn description(&self) -> &str {
+        "AVR text format with timestamps for dump1090 compatibility"
+    }
+
+    fn default_port(&self) -> u16 {
+        30003
+    }
+
+    async fn build(&self, config: crate::output_module::OutputModuleConfig) -> Result<Box<dyn crate::output_module::OutputModule>> {
+        let module = AvrOutput::new(config).await?;
+        Ok(Box::new(module))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -135,6 +135,97 @@ impl RawBroadcaster {
     }
 }
 
+/// Raw output module implementing the OutputModule trait
+pub struct RawOutput {
+    name: String,
+    port: u16,
+    broadcaster: RawBroadcaster,
+    is_running: bool,
+}
+
+impl RawOutput {
+    /// Create a new Raw output module
+    pub async fn new(config: crate::output_module::OutputModuleConfig) -> Result<Self> {
+        let (broadcaster, receiver) = RawBroadcaster::new(config.buffer_capacity);
+        
+        // Start the server
+        let server = RawServer::new(config.port, receiver).await?;
+        tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                error!("Raw server error: {}", e);
+            }
+        });
+
+        Ok(Self {
+            name: config.name,
+            port: config.port,
+            broadcaster,
+            is_running: true,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModule for RawOutput {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        "Raw hex format for dump1090 port 30002 compatibility"
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    fn broadcast_packet(&self, data: &[u8], metadata: &DecoderMetaData) -> Result<()> {
+        self.broadcaster.broadcast_packet(data, metadata)
+    }
+
+    fn client_count(&self) -> usize {
+        self.broadcaster.client_count()
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    fn stop(&mut self) -> Result<()> {
+        self.is_running = false;
+        Ok(())
+    }
+}
+
+/// Builder for Raw output modules
+pub struct RawOutputBuilder;
+
+impl RawOutputBuilder {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModuleBuilder for RawOutputBuilder {
+    fn module_type(&self) -> &str {
+        "raw"
+    }
+
+    fn description(&self) -> &str {
+        "Raw hex format for dump1090 port 30002 compatibility"
+    }
+
+    fn default_port(&self) -> u16 {
+        30002
+    }
+
+    async fn build(&self, config: crate::output_module::OutputModuleConfig) -> Result<Box<dyn crate::output_module::OutputModule>> {
+        let module = RawOutput::new(config).await?;
+        Ok(Box::new(module))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

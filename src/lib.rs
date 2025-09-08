@@ -29,13 +29,16 @@ mod tracker;
 pub use tracker::Tracker;
 
 mod beast_output;
-pub use beast_output::{BeastBroadcaster, BeastMessage, BeastServer};
+pub use beast_output::{BeastBroadcaster, BeastMessage, BeastServer, BeastOutput, BeastOutputBuilder};
 
 mod avr_output;
-pub use avr_output::{AvrBroadcaster, AvrMessage, AvrServer};
+pub use avr_output::{AvrBroadcaster, AvrMessage, AvrServer, AvrOutput, AvrOutputBuilder};
 
 mod raw_output;
-pub use raw_output::{RawBroadcaster, RawMessage, RawServer};
+pub use raw_output::{RawBroadcaster, RawMessage, RawServer, RawOutput, RawOutputBuilder};
+
+mod output_module;
+pub use output_module::{OutputModule, OutputModuleBuilder, OutputModuleConfig, OutputModuleManager, OutputModuleRegistry};
 
 type AdsbIcao = adsb_deku::ICAO;
 type AdsbIdentification = adsb_deku::adsb::Identification;

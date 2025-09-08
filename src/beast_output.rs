@@ -199,6 +199,97 @@ impl BeastBroadcaster {
     }
 }
 
+/// BEAST output module implementing the OutputModule trait
+pub struct BeastOutput {
+    name: String,
+    port: u16,
+    broadcaster: BeastBroadcaster,
+    is_running: bool,
+}
+
+impl BeastOutput {
+    /// Create a new BEAST output module
+    pub async fn new(config: crate::output_module::OutputModuleConfig) -> Result<Self> {
+        let (broadcaster, receiver) = BeastBroadcaster::new(config.buffer_capacity);
+        
+        // Start the server
+        let server = BeastServer::new(config.port, receiver).await?;
+        tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                error!("BEAST server error: {}", e);
+            }
+        });
+
+        Ok(Self {
+            name: config.name,
+            port: config.port,
+            broadcaster,
+            is_running: true,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModule for BeastOutput {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        "BEAST binary protocol for dump1090 compatibility (port 30005)"
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    fn broadcast_packet(&self, data: &[u8], metadata: &DecoderMetaData) -> Result<()> {
+        self.broadcaster.broadcast_packet(data, metadata)
+    }
+
+    fn client_count(&self) -> usize {
+        self.broadcaster.client_count()
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    fn stop(&mut self) -> Result<()> {
+        self.is_running = false;
+        Ok(())
+    }
+}
+
+/// Builder for BEAST output modules
+pub struct BeastOutputBuilder;
+
+impl BeastOutputBuilder {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::output_module::OutputModuleBuilder for BeastOutputBuilder {
+    fn module_type(&self) -> &str {
+        "beast"
+    }
+
+    fn description(&self) -> &str {
+        "BEAST binary protocol for dump1090 compatibility"
+    }
+
+    fn default_port(&self) -> u16 {
+        30005
+    }
+
+    async fn build(&self, config: crate::output_module::OutputModuleConfig) -> Result<Box<dyn crate::output_module::OutputModule>> {
+        let module = BeastOutput::new(config).await?;
+        Ok(Box::new(module))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

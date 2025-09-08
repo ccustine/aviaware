@@ -35,6 +35,7 @@ pub struct DecoderMetaData {
 pub struct AdsbPacket {
     pub message: adsb_deku::Frame,
     pub decoder_metadata: DecoderMetaData,
+    pub raw_bytes: Vec<u8>,
 }
 
 pub struct Decoder {
@@ -103,6 +104,7 @@ impl Decoder {
                 let packet = AdsbPacket {
                     message,
                     decoder_metadata,
+                    raw_bytes: bytes,
                 };
                 Ok(packet)
             }
