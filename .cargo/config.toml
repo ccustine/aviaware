@@ -1,0 +1,10 @@
+[build]
+rustc-wrapper = "sccache"
+# .cargo/config.toml
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-fuse-ld=lld",
+    "-C", "target-cpu=native"
+]
+
+

@@ -113,6 +113,15 @@ AviAware supports multiple output formats for compatibility with various ADS-B t
   - [BaseStation Protocol](http://woodair.net/sbs/article/barebones42_socket_data.htm)
   - [SBS-1 Data Format](http://www.homepages.mcb.net/bones/SBS/Article/Barebones42_Socket_Data.htm)
 
+### WebSocket Format (Port 8080)
+- **Default**: Disabled by default
+- **Description**: Real-time WebSocket streaming with BEAST format messages
+- **Usage**: `--websocket`, `--websocket-port <PORT>`
+- **Protocol**: Binary WebSocket messages containing BEAST-encoded ADS-B data
+- **Compatibility**: Web browsers, JavaScript applications, real-time web dashboards
+- **Message Format**: Each WebSocket message contains a complete BEAST-format packet
+- **Use Cases**: Real-time web applications, live flight tracking interfaces, custom dashboards
+
 ## Example Usage
 
 ```bash
@@ -120,11 +129,51 @@ AviAware supports multiple output formats for compatibility with various ADS-B t
 cargo run
 
 # Enable all output formats
-cargo run -- --avr --sbs1
+cargo run -- --avr --sbs1 --websocket
 
 # Custom ports to avoid conflicts
-cargo run -- --beast-port 40005 --raw-port 40002 --sbs1-port 40004
+cargo run -- --beast-port 40005 --raw-port 40002 --sbs1-port 40004 --websocket-port 9090
 
-# Enable only SBS-1 output
-cargo run -- --no-beast --no-raw --sbs1
+# Enable only WebSocket output for web applications
+cargo run -- --no-beast --no-raw --websocket
+
+# Enable SBS-1 and WebSocket for comprehensive coverage
+cargo run -- --sbs1 --websocket
+```
+
+## WebSocket Usage Example
+
+For web applications connecting to the WebSocket output:
+
+```javascript
+// Connect to AviAware WebSocket server
+const ws = new WebSocket('ws://localhost:8080');
+
+// Handle binary BEAST messages
+ws.onmessage = function(event) {
+    // event.data is an ArrayBuffer containing BEAST format data
+    const data = new Uint8Array(event.data);
+    
+    // BEAST format: [0x1A, type, timestamp(6), signal, payload...]
+    if (data[0] === 0x1A) {  // BEAST escape character
+        const messageType = data[1];  // 0x31=short, 0x32=long
+        const timestamp = data.slice(2, 8);  // 6 bytes
+        const signal = data[8];  // Signal strength
+        const payload = data.slice(9);  // ADS-B message
+        
+        console.log('ADS-B Message:', {
+            type: messageType === 0x31 ? 'short' : 'long',
+            signal: signal,
+            data: Array.from(payload).map(b => b.toString(16).padStart(2, '0')).join('')
+        });
+    }
+};
+
+ws.onopen = function() {
+    console.log('Connected to AviAware WebSocket stream');
+};
+
+ws.onerror = function(error) {
+    console.error('WebSocket error:', error);
+};
 ```

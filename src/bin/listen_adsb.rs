@@ -1,6 +1,6 @@
 use adsb_demod::DEMOD_SAMPLE_RATE;
 use adsb_demod::{OutputModuleConfig, OutputModuleManager};
-use adsb_demod::{BeastOutput, AvrOutput, RawOutput, Sbs1Output};
+use adsb_demod::{BeastOutput, AvrOutput, RawOutput, Sbs1Output, WebSocketOutput};
 use adsb_demod::Decoder;
 use adsb_demod::Demodulator;
 use adsb_demod::PreambleDetector;
@@ -74,6 +74,12 @@ struct Args {
     /// Port for SBS-1/BaseStation format output
     #[arg(long, default_value_t = 30004)]
     sbs1_port: u16,
+    /// Enable WebSocket output for real-time web application streaming
+    #[arg(long)]
+    websocket: bool,
+    /// Port for WebSocket output
+    #[arg(long, default_value_t = 30008)]
+    websocket_port: u16,
 }
 
 fn sample_rate_parser(sample_rate_str: &str) -> Result<f64, String> {
@@ -211,6 +217,19 @@ async fn main() -> Result<()> {
             }
             Err(e) => {
                 eprintln!("Failed to start SBS-1 server: {}", e);
+            }
+        }
+    }
+
+    if args.websocket {
+        let config = OutputModuleConfig::new("websocket", args.websocket_port).with_buffer_capacity(1024);
+        match WebSocketOutput::new(config).await {
+            Ok(module) => {
+                println!("WebSocket server started on port {} (BEAST format)", args.websocket_port);
+                output_manager.add_module(Box::new(module));
+            }
+            Err(e) => {
+                eprintln!("Failed to start WebSocket server: {}", e);
             }
         }
     }

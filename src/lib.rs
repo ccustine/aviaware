@@ -40,6 +40,9 @@ pub use raw_output::{RawBroadcaster, RawMessage, RawServer, RawOutput, RawOutput
 mod sbs1_output;
 pub use sbs1_output::{Sbs1Broadcaster, Sbs1Message, Sbs1Server, Sbs1Output, Sbs1OutputBuilder};
 
+mod websocket_output;
+pub use websocket_output::{WebSocketBroadcaster, WebSocketMessage, WebSocketServer, WebSocketOutput, WebSocketOutputBuilder};
+
 mod output_module;
 pub use output_module::{OutputModule, OutputModuleBuilder, OutputModuleConfig, OutputModuleManager, OutputModuleRegistry};
 
